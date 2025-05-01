@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from datasets import load_dataset
 from trl import SFTTrainer, SFTConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
-from accelerate import Accelerator
 import yaml
 
 # Configuration
@@ -53,8 +52,6 @@ config = {
 
 # Set up environment
 os.environ['WANDB_PROJECT'] = config["project_name"]
-accelerator = Accelerator()
-device = accelerator.device
 
 # Load and preprocess dataset
 dataset = load_dataset(config["dataset"]["name"], split=config["dataset"]["split"])
@@ -136,9 +133,10 @@ def pad_logits(student_logits, teacher_logits):
     return student_logits, teacher_logits
 
 class LogitsTrainer(SFTTrainer):
-    def compute_loss(self, model, inputs, return_outputs=False):
-        inputs = {k: v.to(model.device) if hasattr(v, 'to') else v for k, v in inputs.items()}
-        self.teacher_model = self.teacher_model.to(model.device)
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        device = next(model.parameters()).device
+        inputs = {k: v.to(device) if hasattr(v, 'to') else v for k, v in inputs.items()}
+        self.teacher_model = self.teacher_model.to(device)
         
         student_model = model.module if hasattr(model, 'module') else model
         teacher_model = self.teacher_model.module if hasattr(self.teacher_model, 'module') else self.teacher_model
@@ -147,11 +145,12 @@ class LogitsTrainer(SFTTrainer):
         with torch.no_grad():
             teacher_outputs = teacher_model(**inputs)
 
-        custom_loss = self.distillation_loss(student_outputs.logits, teacher_outputs.logits, inputs, student_outputs.loss)
+        custom_loss = self.distillation_loss(model, student_outputs.logits, teacher_outputs.logits, inputs, student_outputs.loss)
         return (custom_loss, student_outputs) if return_outputs else custom_loss
 
-    def distillation_loss(self, student_logits, teacher_logits, inputs, original_loss):
-        student_logits, teacher_logits = pad_logits(student_logits.to(self.model.device), teacher_logits.to(self.model.device))
+    def distillation_loss(self, model, student_logits, teacher_logits, inputs, original_loss):
+        device = next(model.parameters()).device
+        student_logits, teacher_logits = pad_logits(student_logits.to(device), teacher_logits.to(device))
         
         student_logits_scaled = student_logits / config["distillation"]["temperature"]
         teacher_logits_scaled = teacher_logits / config["distillation"]["temperature"]
@@ -172,17 +171,14 @@ trainer = LogitsTrainer(
     model=student_model,
     train_dataset=tokenized_dataset["train"],
     eval_dataset=tokenized_dataset["test"],
-    tokenizer=student_tokenizer,
+    #tokenizer=student_tokenizer,
     args=training_arguments,
-    max_seq_length=config["tokenizer"]["max_length"],
-    dataset_text_field="text",
+    #max_seq_length=config["tokenizer"]["max_length"],
+    #dataset_text_field="text",
 )
 
 # Add the teacher model to the trainer
 trainer.teacher_model = teacher_model
-
-# Prepare for distributed training
-trainer = accelerator.prepare(trainer)
 
 # Train the model
 trainer.train(resume_from_checkpoint=config["training"]["resume_from_checkpoint"])
