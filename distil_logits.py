@@ -10,29 +10,29 @@ import yaml
 config = {
     "project_name": "distil-logits",
     "dataset": {
-        "name": "mlabonne/FineTome-100k",
+        "name": "/mnt/sda1/Yikun/distillKitPlus/CybersecurityDatasets/",
         "split": "train",
         # "num_samples": , # You can pass a number here to limit the number of samples to use.
-        "seed": 42
+        "seed": 37
     },
     "models": {
-        "teacher": "arcee-ai/Arcee-Spark",
-        "student": "Qwen/Qwen2-1.5B"
+        "teacher": "/mnt/sda1/Yikun/distillKitPlus/Qwen3-4B-Instruct-2507/",
+        "student": "/mnt/sda1/Yikun/distillKitPlus/Qwen3-0.6B/"
     },
     "tokenizer": {
-        "max_length": 4096,
+        "max_length": 2048,
         "chat_template": "{% for message in messages %}{% if loop.first and messages[0]['role'] != 'system' %}{{ '<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n' }}{% endif %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
     },
     "training": {
-        "output_dir": "./results",
-        "num_train_epochs": 3,
+        "output_dir": "./results1",
+        "num_train_epochs": 5,
         "per_device_train_batch_size": 1,
         "gradient_accumulation_steps": 8,
         "save_steps": 1000,
-        "logging_steps": 1,
-        "learning_rate": 2e-5,
+        "logging_steps": 5,
+        "learning_rate": 1e-4,
         "weight_decay": 0.05,
-        "warmup_ratio": 0.1,
+        "warmup_ratio": 0.05,
         "lr_scheduler_type": "cosine",
         "resume_from_checkpoint": None,  # Set to a path or True to resume from the latest checkpoint
         "fp16": False,
@@ -40,7 +40,7 @@ config = {
     },
     "distillation": {
         "temperature": 2.0,
-        "alpha": 0.5
+        "alpha": 0.7
     },
     "model_config": {
         "use_flash_attention": True
