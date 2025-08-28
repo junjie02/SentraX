@@ -4,3 +4,4 @@ safetensors
 transformers==4.51.3
 trl
 hf_transfer
+
